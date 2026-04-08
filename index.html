@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bournemouth Pro Tool</title>
+
+<style>
+body { font-family: Arial; margin:0; background:#0b0b0b; color:white; }
+header { padding:15px; background:#d71920; text-align:center; }
+.container { padding:10px; }
+
+.card { background:#1a1a1a; padding:10px; margin-bottom:8px; border-radius:8px; }
+
+button {
+  padding:12px;
+  width:100%;
+  margin-top:10px;
+  background:#d71920;
+  color:white;
+  border:none;
+  border-radius:8px;
+}
+
+select, input {
+  width:100%;
+  margin:5px 0;
+  padding:6px;
+}
+
+.tabs { display:flex; gap:5px; margin-bottom:10px; }
+.tab { flex:1; padding:10px; background:#333; text-align:center; border-radius:6px; }
+.active { background:#d71920; }
+
+.pitch {
+  background:green;
+  border-radius:10px;
+  padding:10px;
+  margin:10px 0;
+}
+
+.row {
+  display:flex;
+  justify-content:space-around;
+  margin:10px 0;
+}
+
+.playerDot {
+  background:#d71920;
+  padding:6px;
+  border-radius:50%;
+  font-size:10px;
+}
+</style>
+</head>
+
+<body>
+
+<header><h2>Bournemouth Pro Tool</h2></header>
+<div class="container" id="app"></div>
+
+<script>
+
+const players = [
+"Solanke","Semenyo","Kluivert","Tavernier","Ouattara",
+"Cook","Christie","Billing","Adams","Scott",
+"Kerkez","Smith","Zabarnyi","Senesi","Aarons",
+"Kelly","Mepham","Hill","Brooks","Sinisterra",
+"Neto","Travers","Radu"
+];
+
+let matches = JSON.parse(localStorage.getItem("matches")) || [];
+let view = "dashboard";
+
+function render() {
+
+let html = `
+<div class="tabs">
+<div class="tab ${view==="dashboard"?"active":""}" onclick="view='dashboard';render()">Dashboard</div>
+<div class="tab ${view==="add"?"active":""}" onclick="view='add';render()">Add Match</div>
+<div class="tab ${view==="matches"?"active":""}" onclick="view='matches';render()">Matches</div>
+</div>
+`;
+
+if(view==="dashboard"){
+
+let stats = {};
+players.forEach(p => stats[p] = {apps:0, goals:0});
+
+matches.forEach(m=>{
+m.players.forEach(p=>{
+stats[p.name].apps++;
+stats[p.name].goals += p.goals;
+});
+});
+
+let sorted = Object.keys(stats).sort((a,b)=>stats[b].goals - stats[a].goals);
+
+sorted.forEach(p=>{
+html += `<div class="card">
+<b>${p}</b><br>
+Apps: ${stats[p].apps} | Goals: ${stats[p].goals}
+</div>`;
+});
+
+}
+
+if(view==="add"){
+html += `
+<div class="card">
+Opponent:<input id="opp">
+Date:<input id="date" type="date">
+
+Competition:
+<select id="comp">
+<option>Premier League</option>
+<option>FA Cup</option>
+<option>League Cup</option>
+<option>Other</option>
+</select>
+
+Formation:
+<select id="formation">
+<option>4-3-3</option>
+<option>4-4-2</option>
+<option>3-5-2</option>
+<option>4-2-3-1</option>
+</select>
+
+<button onclick="startMatch()">Start Match Entry</button>
+</div>
+`;
+}
+
+if(view==="matches"){
+matches.forEach((m,i)=>{
+html += `<div class="card" onclick="matchDetail(${i})">
+${m.date} vs ${m.opp} (${m.comp})
+</div>`;
+});
+}
+
+document.getElementById("app").innerHTML = html;
+}
+
+function startMatch(){
+let opp = document.getElementById("opp").value;
+let date = document.getElementById("date").value;
+let comp = document.getElementById("comp").value;
+let formation = document.getElementById("formation").value;
+
+let html = `<h3>${date} vs ${opp} (${comp})</h3>`;
+
+players.forEach(p=>{
+html += `
+<div>
+<input type="checkbox" id="${p}"> ${p}
+Goals: <input type="number" id="g_${p}" value="0">
+</div>`;
+});
+
+html += `<button onclick="saveMatch('${opp}','${date}','${comp}','${formation}')">Save Match</button>`;
+
+document.getElementById("app").innerHTML = html;
+}
+
+function saveMatch(opp,date,comp,formation){
+
+let selected = [];
+
+players.forEach(p=>{
+if(document.getElementById(p).checked){
+selected.push({
+name:p,
+goals:parseInt(document.getElementById("g_"+p).value)||0
+});
+}
+});
+
+matches.push({
+opp,date,comp,formation,players:selected
+});
+
+localStorage.setItem("matches", JSON.stringify(matches));
+
+view="dashboard";
+render();
+}
+
+function matchDetail(i){
+
+let m = matches[i];
+let formation = m.formation.split("-").map(Number);
+
+let html = `<h3>${m.date} vs ${m.opp}</h3>`;
+
+html += `<div class="pitch">`;
+
+let index = 0;
+
+formation.forEach(num=>{
+html += `<div class="row">`;
+
+for(let j=0;j<num;j++){
+if(m.players[index]){
+html += `<div class="playerDot">${m.players[index].name}</div>`;
+}
+index++;
+}
+
+html += `</div>`;
+});
+
+html += `</div>`;
+
+m.players.forEach(p=>{
+html += `<div class="card">${p.name} (${p.goals})</div>`;
+});
+
+html += `<button onclick="render()">Back</button>`;
+
+document.getElementById("app").innerHTML = html;
+}
+
+render();
+
+</script>
+
+</body>
+</html>
