@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bournemouth Stats Pro</title>
+
+<style>
+body { font-family: Arial; margin:0; background:#0b0b0b; color:white; }
+header { padding:15px; background:#d71920; text-align:center; }
+.container { padding:10px; }
+
+.card { background:#1a1a1a; padding:10px; margin-bottom:8px; border-radius:8px; }
+
+button {
+  padding:12px;
+  width:100%;
+  margin-top:10px;
+  background:#d71920;
+  color:white;
+  border:none;
+  border-radius:8px;
+}
+
+select, input {
+  width:100%;
+  margin:5px 0;
+  padding:6px;
+}
+
+.tabs { display:flex; gap:5px; margin-bottom:10px; }
+.tab { flex:1; padding:10px; background:#333; text-align:center; border-radius:6px; }
+.active { background:#d71920; }
+
+.section { margin-top:10px; font-weight:bold; }
+
+.playerRow {
+  display:flex;
+  justify-content:space-between;
+  margin-bottom:5px;
+}
+</style>
+</head>
+
+<body>
+
+<header><h2>Bournemouth Stats</h2></header>
+<div class="container" id="app"></div>
+
+<script>
+
+const players = [
+"Solanke","Semenyo","Kluivert","Tavernier","Ouattara",
+"Cook","Christie","Billing","Adams","Scott",
+"Kerkez","Smith","Zabarnyi","Senesi","Aarons",
+"Kelly","Mepham","Hill","Brooks","Sinisterra",
+"Neto","Travers","Radu"
+];
+
+let matches = JSON.parse(localStorage.getItem("matches")) || [];
+let view = "dashboard";
+let seasonFilter = "All";
+
+function getSeasons(){
+let set = new Set();
+matches.forEach(m => set.add(m.season));
+return Array.from(set);
+}
+
+function calcStats(){
+let stats = {};
+players.forEach(p => stats[p] = {apps:0, starts:0, subs:0, goals:0});
+
+matches.forEach(m=>{
+if(seasonFilter !== "All" && m.season !== seasonFilter) return;
+
+m.starting.forEach(p=>{
+stats[p.name].apps++;
+stats[p.name].starts++;
+stats[p.name].goals += p.goals;
+});
+
+m.subs.forEach(p=>{
+stats[p.name].apps++;
+stats[p.name].subs++;
+});
+});
+
+return stats;
+}
+
+function render(){
+
+let html = `
+<div class="tabs">
+<div class="tab ${view==="dashboard"?"active":""}" onclick="view='dashboard';render()">Dashboard</div>
+<div class="tab ${view==="add"?"active":""}" onclick="view='add';render()">Add Match</div>
+</div>
+`;
+
+if(view==="dashboard"){
+
+let stats = calcStats();
+
+html += `
+<select onchange="setSeason(this.value)">
+<option>All</option>
+${getSeasons().map(s => `<option ${s===seasonFilter?"selected":""}>${s}</option>`).join("")}
+</select>
+`;
+
+let sorted = Object.keys(stats).sort((a,b)=>stats[b].goals - stats[a].goals);
+
+sorted.forEach(p=>{
+let s = stats[p];
+html += `<div class="card">
+<b>${p}</b><br>
+Apps: ${s.apps} | Starts: ${s.starts} | Subs: ${s.subs} | Goals: ${s.goals}
+</div>`;
+});
+
+}
+
+if(view==="add"){
+html += `
+<div class="card">
+Season:<input id="season" placeholder="2025/26">
+
+Opponent:<input id="opp">
+Date:<input id="date" type="date">
+
+Competition:
+<select id="comp">
+<option>Premier League</option>
+<option>FA Cup</option>
+<option>League Cup</option>
+<option>Other</option>
+</select>
+
+<button onclick="startMatch()">Start Match Entry</button>
+</div>
+`;
+}
+
+document.getElementById("app").innerHTML = html;
+}
+
+function setSeason(val){
+seasonFilter = val;
+render();
+}
+
+function startMatch(){
+
+let season = document.getElementById("season").value;
+let opp = document.getElementById("opp").value;
+let date = document.getElementById("date").value;
+let comp = document.getElementById("comp").value;
+
+let html = `<h3>${season} | ${date} vs ${opp} (${comp})</h3>`;
+
+html += `<div class="section">Starting XI (max 11)</div>`;
+
+players.forEach(p=>{
+html += `
+<div class="playerRow">
+<label><input type="checkbox" onchange="limitXI(this)" id="s_${p}"> ${p}</label>
+Goals:<input type="number" id="g_${p}" value="0">
+</div>`;
+});
+
+html += `<div class="section">Substitutes (max 5)</div>`;
+
+players.forEach(p=>{
+html += `
+<div class="playerRow">
+<label><input type="checkbox" onchange="limitSubs(this)" id="sub_${p}"> ${p}</label>
+</div>`;
+});
+
+html += `<button onclick="saveMatch('${season}','${opp}','${date}','${comp}')">Save Match</button>`;
+
+document.getElementById("app").innerHTML = html;
+}
+
+function limitXI(cb){
+let selected = document.querySelectorAll('[id^="s_"]:checked');
+if(selected.length > 11){
+cb.checked = false;
+alert("Max 11 starters");
+}
+}
+
+function limitSubs(cb){
+let selected = document.querySelectorAll('[id^="sub_"]:checked');
+if(selected.length > 5){
+cb.checked = false;
+alert("Max 5 subs");
+}
+}
+
+function saveMatch(season,opp,date,comp){
+
+let entry = {
+season, opp, date, comp,
+starting:[],
+subs:[]
+};
+
+players.forEach(p=>{
+
+let isStarter = document.getElementById("s_"+p).checked;
+let isSub = document.getElementById("sub_"+p).checked;
+
+if(isStarter){
+entry.starting.push({
+name:p,
+goals:parseInt(document.getElementById("g_"+p).value)||0
+});
+}
+
+if(isSub && !isStarter){
+entry.subs.push({name:p});
+}
+
+});
+
+matches.push(entry);
+localStorage.setItem("matches", JSON.stringify(matches));
+
+alert("Match saved!");
+view="dashboard";
+render();
+}
+
+render();
+
+</script>
+
+</body>
+</html>
