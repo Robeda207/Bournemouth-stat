@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bournemouth Stats</title>
+
+<style>
+body{font-family:Arial;margin:0;background:#0b0b0b;color:white}
+header{padding:16px;background:#d71920;text-align:center}
+.container{padding:12px}
+.card{background:#1a1a1a;padding:14px;margin-bottom:10px;border-radius:10px}
+button{padding:12px;width:100%;margin-top:10px;background:#d71920;color:white;border:0;border-radius:8px;font-size:16px}
+select,input{width:100%;padding:8px;margin:6px 0}
+.row{display:flex;justify-content:space-between;gap:8px;margin:6px 0}
+.small{width:60px}
+</style>
+</head>
+
+<body>
+<header><h2>Bournemouth Stats</h2></header>
+<div class="container" id="app"></div>
+
+<script>
+
+// ---------- PLAYERS ----------
+const players = [
+"Solanke","Semenyo","Kluivert","Tavernier","Ouattara",
+"Cook","Christie","Billing","Adams","Scott",
+"Kerkez","Smith","Zabarnyi","Senesi","Aarons",
+"Kelly","Mepham","Hill","Brooks","Sinisterra",
+"Neto","Travers","Radu"
+];
+
+// ---------- SEASONS ----------
+const seasons = [];
+for(let y=2025; y>=1986; y--){
+  let next = (y+1).toString().slice(2);
+  seasons.push(`${y}/${next}`);
+}
+
+// ---------- OPPONENTS ----------
+const opponents = [
+"Arsenal","Aston Villa","Brentford","Brighton","Burnley",
+"Chelsea","Crystal Palace","Everton","Fulham","Leeds United",
+"Leicester City","Liverpool","Manchester City","Manchester United",
+"Newcastle United","Nottingham Forest","Sheffield United",
+"Southampton","Tottenham Hotspur","West Ham United",
+"Wolverhampton Wanderers",
+
+// Championship / League clubs
+"Blackburn Rovers","Blackpool","Birmingham City","Bolton Wanderers",
+"Bristol City","Cardiff City","Coventry City","Derby County",
+"Huddersfield Town","Hull City","Ipswich Town","Luton Town",
+"Middlesbrough","Millwall","Norwich City","Preston North End",
+"Queens Park Rangers","Reading","Rotherham United","Sheffield Wednesday",
+"Stoke City","Sunderland","Swansea City","Watford","West Bromwich Albion",
+"Wigan Athletic",
+
+// Lower leagues / cups
+"AFC Wimbledon","Accrington Stanley","Barnsley","Bradford City",
+"Burton Albion","Cambridge United","Charlton Athletic","Cheltenham Town",
+"Colchester United","Crewe Alexandra","Doncaster Rovers","Exeter City",
+"Forest Green Rovers","Gillingham","Grimsby Town","Harrogate Town",
+"Leyton Orient","Lincoln City","Mansfield Town","MK Dons",
+"Morecambe","Newport County","Northampton Town","Oldham Athletic",
+"Oxford United","Peterborough United","Plymouth Argyle","Port Vale",
+"Portsmouth","Rochdale","Salford City","Scunthorpe United",
+"Shrewsbury Town","Stevenage","Swindon Town","Tranmere Rovers",
+"Walsall","Wycombe Wanderers"
+];
+
+let matches = JSON.parse(localStorage.getItem("matches")||"[]");
+let view="home";
+let selectedSeason="";
+
+// ---------- FUNCTIONS ----------
+function statsFor(season){
+let s={};
+players.forEach(p=>s[p]={apps:0,starts:0,subs:0,goals:0});
+
+matches.filter(m=>m.season===season).forEach(m=>{
+m.starting.forEach(p=>{
+s[p.name].apps++;
+s[p.name].starts++;
+s[p.name].goals+=p.goals;
+});
+m.subs.forEach(p=>{
+s[p.name].apps++;
+s[p.name].subs++;
+});
+});
+return s;
+}
+
+function render(){
+let html="";
+
+// HOME
+if(view==="home"){
+html+=`
+<div class="card" onclick="view='seasonList';render()">
+<h3>Player Stats</h3><p>View stats by season</p></div>
+
+<div class="card" onclick="view='add';render()">
+<h3>Add Match</h3><p>Enter match</p></div>`;
+}
+
+// SEASON LIST
+if(view==="seasonList"){
+html+="<h3>Select Season</h3>";
+[...new Set(matches.map(m=>m.season))].forEach(season=>{
+html+=`<div class="card" onclick="selectedSeason='${season}';view='stats';render()">${season}</div>`;
+});
+html+=`<button onclick="view='home';render()">Back</button>`;
+}
+
+// STATS
+if(view==="stats"){
+let s=statsFor(selectedSeason);
+html+=`<h3>${selectedSeason}</h3>`;
+Object.keys(s).sort((a,b)=>s[b].goals-s[a].goals).forEach(p=>{
+html+=`<div class="card"><b>${p}</b><br>
+Apps:${s[p].apps} | Starts:${s[p].starts} | Subs:${s[p].subs} | Goals:${s[p].goals}</div>`;
+});
+html+=`<button onclick="view='seasonList';render()">Back</button>`;
+}
+
+// ADD MATCH
+if(view==="add"){
+html+=`
+<div class="card">
+
+Season:
+<select id="season">
+${seasons.map(s=>`<option>${s}</option>`).join("")}
+</select>
+
+Opponent:
+<select id="opp">
+${opponents.map(o=>`<option>${o}</option>`).join("")}
+</select>
+
+Date:<input id="date" type="date">
+
+Competition:
+<select id="comp">
+<option>Premier League</option>
+<option>FA Cup</option>
+<option>League Cup</option>
+<option>Other</option>
+</select>
+
+<button onclick="lineup()">Start Match Entry</button>
+</div>
+
+<button onclick="view='home';render()">Back</button>`;
+}
+
+document.getElementById("app").innerHTML=html;
+}
+
+function lineup(){
+let season=document.getElementById("season").value;
+let opp=document.getElementById("opp").value;
+let date=document.getElementById("date").value;
+let comp=document.getElementById("comp").value;
+
+let html=`<h3>${season} | ${date} vs ${opp}</h3><h4>Starting XI</h4>`;
+
+players.forEach(p=>{
+html+=`<div class="row">
+<label><input type="checkbox" onchange="limit('s_',11,this)" id="s_${p}"> ${p}</label>
+<input class="small" type="number" id="g_${p}" value="0">
+</div>`;
+});
+
+html+="<h4>Subs</h4>";
+
+players.forEach(p=>{
+html+=`<div class="row">
+<label><input type="checkbox" onchange="limit('sub_',5,this)" id="sub_${p}"> ${p}</label>
+</div>`;
+});
+
+html+=`<button onclick="save('${season}','${opp}','${date}','${comp}')">Save Match</button>`;
+
+document.getElementById("app").innerHTML=html;
+}
+
+function limit(prefix,max,box){
+if(document.querySelectorAll('[id^="'+prefix+'"]:checked').length>max){
+box.checked=false;
+alert("Max "+max);
+}
+}
+
+function save(season,opp,date,comp){
+let match={season,opp,date,comp,starting:[],subs:[]};
+
+players.forEach(p=>{
+let starter=document.getElementById("s_"+p).checked;
+let sub=document.getElementById("sub_"+p).checked;
+
+if(starter){
+match.starting.push({name:p,goals:parseInt(document.getElementById("g_"+p).value)||0});
+}
+if(sub && !starter){
+match.subs.push({name:p});
+}
+});
+
+matches.push(match);
+localStorage.setItem("matches",JSON.stringify(matches));
+
+view="home";
+render();
+}
+
+render();
+
+</script>
+</body>
+</html>
