@@ -1,0 +1,66 @@
+function lineup(){
+let season=document.getElementById("season").value;
+let opp=document.getElementById("opp").value;
+let date=document.getElementById("date").value;
+let comp=document.getElementById("comp").value;
+
+let html=`
+<h3>${season} | ${date} vs ${opp}</h3>
+
+<div class="card">
+<h4>Starting XI</h4>
+<p>Enter one player per line. Add goals like this: Solanke, 2</p>
+<textarea id="startingText" rows="12" style="width:100%;padding:8px;"></textarea>
+</div>
+
+<div class="card">
+<h4>Substitutes</h4>
+<p>Enter up to 5 substitutes, one per line.</p>
+<textarea id="subsText" rows="6" style="width:100%;padding:8px;"></textarea>
+</div>
+
+<button onclick="save('${season}','${opp}','${date}','${comp}')">Save Match</button>
+`;
+
+document.getElementById("app").innerHTML=html;
+}
+
+function save(season,opp,date,comp){
+
+let startingLines=document.getElementById("startingText").value
+.split("\\n")
+.map(x=>x.trim())
+.filter(Boolean);
+
+let subLines=document.getElementById("subsText").value
+.split("\\n")
+.map(x=>x.trim())
+.filter(Boolean);
+
+if(startingLines.length>11){
+alert("Starting XI can only have 11 players.");
+return;
+}
+
+if(subLines.length>5){
+alert("Substitutes can only have up to 5 players.");
+return;
+}
+
+let starting=startingLines.map(line=>{
+let parts=line.split(",");
+let name=parts[0].trim();
+let goals=parseInt(parts[1])||0;
+return {name,goals};
+});
+
+let subs=subLines.map(name=>({name}));
+
+let match={season,opp,date,comp,starting,subs};
+
+matches.push(match);
+localStorage.setItem("matches",JSON.stringify(matches));
+
+view="home";
+render();
+}
