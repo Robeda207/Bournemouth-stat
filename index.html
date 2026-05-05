@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bournemouth Stats</title>
+<style>
+body{font-family:Arial;margin:0;background:#0b0b0b;color:white}
+header{background:#d71920;padding:16px;text-align:center}
+.container{padding:12px}
+.card{background:#1a1a1a;padding:14px;margin-bottom:10px;border-radius:10px}
+button{background:#d71920;color:white;border:0;padding:12px;border-radius:8px;width:100%;font-size:16px;margin-top:10px}
+.delete{background:#555}
+input,select{width:100%;padding:8px;margin:6px 0;border-radius:6px;border:0}
+.row{display:grid;grid-template-columns:34px 1fr 70px;gap:8px;align-items:center;margin-bottom:8px}
+.subrow{display:grid;grid-template-columns:34px 1fr;gap:8px;align-items:center;margin-bottom:8px}
+.note{color:#ccc;font-size:13px}
+</style>
+</head>
+
+<body>
+<header><h2>Bournemouth Stats</h2></header>
+<div class="container" id="app"></div>
+
+<script>
+var seasons=[];
+for(var y=2025;y>=1986;y--){
+  seasons.push(y+"/"+String(y+1).slice(2));
+}
+
+var opponents=[
+"Arsenal","Aston Villa","Brentford","Brighton","Burnley","Chelsea","Crystal Palace","Everton","Fulham","Leeds United","Leicester City","Liverpool","Manchester City","Manchester United","Newcastle United","Nottingham Forest","Southampton","Tottenham Hotspur","West Ham United","Wolverhampton Wanderers",
+"Blackburn Rovers","Blackpool","Birmingham City","Bolton Wanderers","Bristol City","Cardiff City","Coventry City","Derby County","Huddersfield Town","Hull City","Ipswich Town","Luton Town","Middlesbrough","Millwall","Norwich City","Preston North End","Queens Park Rangers","Reading","Rotherham United","Sheffield Wednesday","Stoke City","Sunderland","Swansea City","Watford","West Bromwich Albion","Wigan Athletic",
+"AFC Wimbledon","Barnsley","Bradford City","Burton Albion","Cambridge United","Charlton Athletic","Cheltenham Town","Colchester United","Crewe Alexandra","Doncaster Rovers","Exeter City","Gillingham","Leyton Orient","Lincoln City","Northampton Town","Oxford United","Peterborough United","Plymouth Argyle","Portsmouth","Rochdale","Shrewsbury Town","Stevenage","Swindon Town","Walsall","Wycombe Wanderers","Other"
+];
+
+var matches=[];
+var savedPlayers=[];
+try{matches=JSON.parse(localStorage.getItem("matches")||"[]");if(!Array.isArray(matches))matches=[];}catch(e){matches=[]}
+try{savedPlayers=JSON.parse(localStorage.getItem("savedPlayers")||"[]");if(!Array.isArray(savedPlayers))savedPlayers=[];}catch(e){savedPlayers=[]}
+
+var view="home";
+var selectedSeason="";
+
+function saveData(){
+  localStorage.setItem("matches",JSON.stringify(matches));
+  localStorage.setItem("savedPlayers",JSON.stringify(savedPlayers));
+}
+
+function rememberPlayer(name){
+  name=name.trim();
+  if(name && savedPlayers.indexOf(name)===-1){
+    savedPlayers.push(name);
+    savedPlayers.sort();
+  }
+}
+
+function playerListHTML(){
+  var html='<datalist id="playerNames">';
+  for(var i=0;i<savedPlayers.length;i++){
+    html+='<option value="'+savedPlayers[i]+'">';
+  }
+  html+='</datalist>';
+  return html;
+}
+
+function render(){
+  var html="";
+
+  if(view==="home"){
+    html+='<div class="card" onclick="view=\'seasonList\';render()"><h3>Player Stats</h3><p>View stats by season</p></div>';
+    html+='<div class="card" onclick="view=\'add\';render()"><h3>Add Match</h3><p>Enter a match</p></div>';
+    html+='<div class="card" onclick="view=\'matches\';render()"><h3>Match History</h3><p>View or delete saved matches</p></div>';
+  }
+
+  if(view==="seasonList"){
+    html+="<h3>Select Season</h3>";
+    var used=[];
+    for(var i=0;i<matches.length;i++){
+      if(matches[i].season && used.indexOf(matches[i].season)===-1)used.push(matches[i].season);
+    }
+    if(used.length===0)html+='<div class="card">No matches saved yet.</div>';
+    for(var j=0;j<used.length;j++){
+      html+='<div class="card" onclick="selectedSeason=\''+used[j]+'\';view=\'stats\';render()">'+used[j]+'</div>';
+    }
+    html+='<button onclick="view=\'home\';render()">Back</button>';
+  }
+
+  if(view==="stats"){
+    var stats={};
+    for(var a=0;a<matches.length;a++){
+      var m=matches[a];
+      if(m.season!==selectedSeason)continue;
+
+      for(var b=0;b<m.starting.length;b++){
+        var p=m.starting[b];
+        if(!stats[p.name])stats[p.name]={apps:0,starts:0,subs:0,goals:0};
+        stats[p.name].apps++;
+        stats[p.name].starts++;
+        stats[p.name].goals+=p.goals||0;
+      }
+
+      for(var c=0;c<m.subs.length;c++){
+        var s=m.subs[c];
+        if(!stats[s.name])stats[s.name]={apps:0,starts:0,subs:0,goals:0};
+        stats[s.name].apps++;
+        stats[s.name].subs++;
+      }
+    }
+
+    html+="<h3>Player Stats — "+selectedSeason+"</h3>";
+    var names=Object.keys(stats).sort(function(x,y){return stats[y].goals-stats[x].goals});
+    if(names.length===0)html+='<div class="card">No stats yet.</div>';
+
+    for(var d=0;d<names.length;d++){
+      var n=names[d];
+      html+='<div class="card"><b>'+n+'</b><br>Apps: '+stats[n].apps+' | Starts: '+stats[n].starts+' | Subs: '+stats[n].subs+' | Goals: '+stats[n].goals+'</div>';
+    }
+    html+='<button onclick="view=\'seasonList\';render()">Back</button>';
+  }
+
+  if(view==="matches"){
+    html+="<h3>Match History</h3>";
+    if(matches.length===0)html+='<div class="card">No matches saved yet.</div>';
+    for(var e=matches.length-1;e>=0;e--){
+      var mm=matches[e];
+      html+='<div class="card"><b>'+mm.season+' | '+mm.date+' vs '+mm.opp+'</b><br>'+mm.comp+'<br>';
+      html+='Starters: '+mm.starting.map(function(p){return p.name+(p.goals?(" ("+p.goals+")"):"")}).join(", ")+'<br>';
+      html+='Subs: '+mm.subs.map(function(p){return p.name}).join(", ");
+      html+='<button class="delete" onclick="deleteMatch('+e+')">Delete Match</button></div>';
+    }
+    html+='<button onclick="view=\'home\';render()">Back</button>';
+  }
+
+  if(view==="add"){
+    html+='<div class="card">';
+    html+='Season:<select id="season">';
+    for(var f=0;f<seasons.length;f++)html+='<option>'+seasons[f]+'</option>';
+    html+='</select>';
+
+    html+='Opponent:<select id="opp">';
+    for(var g=0;g<opponents.length;g++)html+='<option>'+opponents[g]+'</option>';
+    html+='</select>';
+
+    html+='Date:<input id="date" type="date">';
+    html+='Competition:<select id="comp"><option>Premier League</option><option>FA Cup</option><option>League Cup</option><option>Other</option></select>';
+    html+='<button onclick="matchEntry()">Continue</button></div>';
+    html+='<button onclick="view=\'home\';render()">Back</button>';
+  }
+
+  document.getElementById("app").innerHTML=html;
+}
+
+function matchEntry(){
+  var season=document.getElementById("season").value;
+  var opp=document.getElementById("opp").value;
+  var date=document.getElementById("date").value;
+  var comp=document.getElementById("comp").value;
+
+  window.pendingMatch={season:season,opp:opp,date:date,comp:comp};
+
+  var html='<h3>'+season+' | '+date+' vs '+opp+'</h3>';
+  html+=playerListHTML();
+
+  html+='<div class="card"><h3>Starting XI</h3><div class="note">Enter player name and goals.</div>';
+  for(var i=1;i<=11;i++){
+    html+='<div class="row"><b>'+i+'</b><input list="playerNames" id="start_'+i+'" placeholder="Player name"><input type="number" id="goal_'+i+'" value="0"></div>';
+  }
+  html+='</div>';
+
+  html+='<div class="card"><h3>Substitutes</h3><div class="note">Enter up to 5 substitute appearances.</div>';
+  for(var j=1;j<=5;j++){
+    html+='<div class="subrow"><b>'+j+'</b><input list="playerNames" id="sub_'+j+'" placeholder="Substitute name"></div>';
+  }
+  html+='</div>';
+
+  html+='<button onclick="saveMatch()">Save Match</button>';
+  html+='<button onclick="view=\'add\';render()">Back</button>';
+
+  document.getElementById("app").innerHTML=html;
+}
+
+function saveMatch(){
+  var starting=[];
+  var subs=[];
+
+  for(var i=1;i<=11;i++){
+    var name=document.getElementById("start_"+i).value.trim();
+    var goals=parseInt(document.getElementById("goal_"+i).value)||0;
+    if(name){
+      starting.push({name:name,goals:goals});
+      rememberPlayer(name);
+    }
+  }
+
+  for(var j=1;j<=5;j++){
+    var subName=document.getElementById("sub_"+j).value.trim();
+    if(subName){
+      subs.push({name:subName});
+      rememberPlayer(subName);
+    }
+  }
+
+  matches.push({
+    season:window.pendingMatch.season,
+    opp:window.pendingMatch.opp,
+    date:window.pendingMatch.date,
+    comp:window.pendingMatch.comp,
+    starting:starting,
+    subs:subs
+  });
+
+  saveData();
+  view="home";
+  render();
+}
+
+function deleteMatch(index){
+  if(confirm("Delete this match?")){
+    matches.splice(index,1);
+    saveData();
+    render();
+  }
+}
+
+render();
+</script>
+</body>
+</html>
