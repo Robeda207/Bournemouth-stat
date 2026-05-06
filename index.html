@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bournemouth Stats</title>
+
+<style>
+body{font-family:Arial;margin:0;background:#0b0b0b;color:white}
+header{background:#d71920;padding:16px;text-align:center;cursor:pointer}
+.container{padding:12px}
+.card{background:#1a1a1a;padding:14px;margin-bottom:10px;border-radius:10px}
+button{background:#d71920;color:white;border:0;padding:12px;border-radius:8px;width:100%;font-size:16px;margin-top:10px}
+.delete{background:#555}
+.secondary{background:#333}
+input,select{width:100%;padding:8px;margin:6px 0;border-radius:6px;border:0}
+.row{display:grid;grid-template-columns:34px 1fr 70px;gap:8px;align-items:center;margin-bottom:8px}
+.note{color:#ccc;font-size:13px}
+.rank{font-size:15px;line-height:1.8}
+.hidden{display:none}
+.goal{color:#ffdddd}
+</style>
+</head>
+
+<body>
+
+<header onclick="goHome()"><h2>Bournemouth Stats</h2></header>
+
+<div class="container" id="app"></div>
+<input type="file" id="importFile" class="hidden" accept=".json">
+
+<script>
+var seasons=[];
+for(var y=2025;y>=1986;y--){
+  seasons.push(y+"/"+String(y+1).slice(2));
+}
+
+var opponents=[
+"Arsenal","Aston Villa","Brentford","Brighton","Burnley","Chelsea","Crystal Palace","Everton","Fulham","Leeds United","Leicester City","Liverpool","Manchester City","Manchester United","Newcastle United","Nottingham Forest","Southampton","Tottenham Hotspur","West Ham United","Wolverhampton Wanderers",
+"Blackburn Rovers","Blackpool","Birmingham City","Bolton Wanderers","Bristol City","Cardiff City","Coventry City","Derby County","Huddersfield Town","Hull City","Ipswich Town","Luton Town","Middlesbrough","Millwall","Norwich City","Preston North End","Queens Park Rangers","Reading","Rotherham United","Sheffield Wednesday","Stoke City","Sunderland","Swansea City","Watford","West Bromwich Albion","Wigan Athletic",
+"AFC Wimbledon","Barnsley","Bradford City","Burton Albion","Cambridge United","Charlton Athletic","Cheltenham Town","Colchester United","Crewe Alexandra","Doncaster Rovers","Exeter City","Gillingham","Leyton Orient","Lincoln City","Northampton Town","Oxford United","Peterborough United","Plymouth Argyle","Portsmouth","Rochdale","Shrewsbury Town","Stevenage","Swindon Town","Walsall","Wycombe Wanderers","Other"
+];
+
+var competitions=["All Competitions","Premier League","FA Cup","League Cup","Other"];
+
+var matches=[];
+var savedPlayers=[];
+
+try{matches=JSON.parse(localStorage.getItem("matches")||"[]");if(!Array.isArray(matches))matches=[];}catch(e){matches=[]}
+try{savedPlayers=JSON.parse(localStorage.getItem("savedPlayers")||"[]");if(!Array.isArray(savedPlayers))savedPlayers=[];}catch(e){savedPlayers=[]}
+
+var view="home";
+var selectedSeason="";
+var editIndex=null;
+var statsCompetitionFilter="All Competitions";
+
+function goHome(){
+  view="home";
+  render();
+}
+
+function saveData(){
+  localStorage.setItem("matches",JSON.stringify(matches));
+  localStorage.setItem("savedPlayers",JSON.stringify(savedPlayers));
+}
+
+function rememberPlayer(name){
+  name=name.trim();
+  if(name && savedPlayers.indexOf(name)===-1){
+    savedPlayers.push(name);
+    savedPlayers.sort();
+  }
+}
+
+function playerListHTML(){
+  var html='<datalist id="playerNames">';
+  for(var i=0;i<savedPlayers.length;i++){
+    html+='<option value="'+savedPlayers[i]+'">';
+  }
+  html+='</datalist>';
+  return html;
+}
+
+function getStats(season,competition){
+  var stats={};
+
+  for(var i=0;i<matches.length;i++){
+    var m=matches[i];
+
+    if(season && season!=="All" && m.season!==season) continue;
+    if(competition && competition!=="All Competitions" && m.comp!==competition) continue;
+
+    for(var a=0;a<m.starting.length;a++){
+      var p=m.starting[a];
+      if(!stats[p.name])stats[p.name]={apps:0,starts:0,subs:0,goals:0};
+      stats[p.name].apps++;
+      stats[p.name].starts++;
+      stats[p.name].goals+=p.goals||0;
+    }
+
+    for(var b=0;b<m.subs.length;b++){
+      var s=m.subs[b];
+      if(!stats[s.name])stats[s.name]={apps:0,starts:0,subs:0,goals:0};
+      stats[s.name].apps++;
+      stats[s.name].subs++;
+      stats[s.name].goals+=s.goals||0;
+    }
+  }
+
+  return stats;
+}
+
+function competitionDropdownHTML(id,current){
+  var html='<select id="'+id+'" onchange="statsCompetitionFilter=this.value;render()">';
+  for(var i=0;i<competitions.length;i++){
+    var c=competitions[i];
+    html+='<option '+(c===current?'selected':'')+'>'+c+'</option>';
+  }
+  html+='</select>';
+  return html;
+}
+
+function renderDashboardBox(title,type){
+  var stats=getStats(selectedSeason,statsCompetitionFilter);
+  var names=Object.keys(stats);
+
+  if(type==="apps"){
+    names.sort(function(a,b){return stats[b].apps-stats[a].apps});
+  }else{
+    names.sort(function(a,b){return stats[b].goals-stats[a].goals});
+  }
+
+  var html='<div class="card">';
+  html+='<h3>'+title+'</h3>';
+
+  if(names.length===0){
+    html+='<div class="note">No stats yet.</div>';
+  }
+
+  for(var i=0;i<names.length;i++){
+    var n=names[i];
+    var value=type==="apps" ? stats[n].apps : stats[n].goals;
+    html+='<div class="rank">'+(i+1)+'. '+n+' — '+value+'</div>';
+  }
+
+  html+='</div>';
+  return html;
+}
+
+function goalScorers(mm){
+  var scorers=[];
+
+  mm.starting.forEach(function(p){
+    if((p.goals||0)>0) scorers.push(p.name+" ("+p.goals+")");
+  });
+
+  mm.subs.forEach(function(p){
+    if((p.goals||0)>0) scorers.push(p.name+" ("+p.goals+")");
+  });
+
+  return scorers.length ? scorers.join(", ") : "None";
+}
+
+function render(){
+  var html="";
+
+  if(view==="home"){
+    html+='<div class="card" onclick="view=\'seasonList\';render()"><h3>Player Stats</h3><p>View stats by season</p></div>';
+    html+='<div class="card" onclick="view=\'add\';render()"><h3>Add Match</h3><p>Enter a match</p></div>';
+    html+='<div class="card" onclick="view=\'matches\';render()"><h3>Match History</h3><p>View, edit, or delete matches</p></div>';
+    html+='<button class="secondary" onclick="exportBackup()">Export Backup</button>';
+    html+='<button class="secondary" onclick="document.getElementById(\'importFile\').click()">Import Backup</button>';
+  }
+
+  if(view==="seasonList"){
+    html+="<h3>Select Season</h3>";
+    html+='<div class="card" onclick="selectedSeason=\'All\';view=\'stats\';render()">All</div>';
+
+    var used=[];
+    for(var i=0;i<matches.length;i++){
+      if(matches[i].season && used.indexOf(matches[i].season)===-1)used.push(matches[i].season);
+    }
+
+    if(used.length===0)html+='<div class="card">No matches saved yet.</div>';
+
+    for(var j=0;j<used.length;j++){
+      html+='<div class="card" onclick="selectedSeason=\''+used[j]+'\';view=\'stats\';render()">'+used[j]+'</div>';
+    }
+
+    html+='<button onclick="view=\'home\';render()">Back</button>';
+  }
+
+  if(view==="stats"){
+    html+="<h3>"+selectedSeason+"</h3>";
+
+    html+='<div class="card"><h3>Division / Competition</h3>';
+    html+=competitionDropdownHTML("statsCompetition",statsCompetitionFilter);
+    html+='</div>';
+
+    html+=renderDashboardBox("Most Appearances","apps");
+    html+=renderDashboardBox("Most Goals","goals");
+    html+='<button onclick="view=\'seasonList\';render()">Back</button>';
+  }
+
+  if(view==="matches"){
+    html+="<h3>Match History</h3>";
+
+    if(matches.length===0)html+='<div class="card">No matches saved yet.</div>';
+
+    for(var e=matches.length-1;e>=0;e--){
+      var mm=matches[e];
+
+      html+='<div class="card">';
+      html+='<b>'+mm.season+' | '+mm.date+' vs '+mm.opp+'</b><br>';
+      html+=(mm.venue||"")+' | '+(mm.result||"")+' | '+(mm.scoreline||"")+'<br>';
+      html+=mm.comp+'<br><br>';
+
+      html+='<b>Starters</b><br>';
+      html+=mm.starting.map(function(p){return p.name+(p.goals?(" ("+p.goals+")"):"")}).join(", ") || "None";
+      html+='<br><br>';
+
+      html+='<b>Subs</b><br>';
+      html+=mm.subs.map(function(p){return p.name+(p.goals?(" ("+p.goals+")"):"")}).join(", ") || "None";
+      html+='<br><br>';
+
+      html+='<b>Goal Scorers</b><br>';
+      html+='<span class="goal">'+goalScorers(mm)+'</span>';
+
+      html+='<button onclick="editMatch('+e+')">Edit Match</button>';
+      html+='<button class="delete" onclick="deleteMatch('+e+')">Delete Match</button>';
+      html+='</div>';
+    }
+
+    html+='<button onclick="view=\'home\';render()">Back</button>';
+  }
+
+  if(view==="add"){
+    renderMatchDetailsForm(null);
+    return;
+  }
+
+  document.getElementById("app").innerHTML=html;
+}
+
+function renderMatchDetailsForm(existing){
+  var html='<div class="card">';
+  html+='<h3>'+(existing?'Edit Match':'Add Match')+'</h3>';
+
+  html+='Season:<select id="season">';
+  for(var f=0;f<seasons.length;f++){
+    html+='<option '+(existing && existing.season===seasons[f]?'selected':'')+'>'+seasons[f]+'</option>';
+  }
+  html+='</select>';
+
+  html+='Opponent:<select id="opp">';
+  for(var g=0;g<opponents.length;g++){
+    html+='<option '+(existing && existing.opp===opponents[g]?'selected':'')+'>'+opponents[g]+'</option>';
+  }
+  html+='</select>';
+
+  html+='Home / Away:<select id="venue">';
+  html+='<option '+(existing && existing.venue==="Home"?'selected':'')+'>Home</option>';
+  html+='<option '+(existing && existing.venue==="Away"?'selected':'')+'>Away</option>';
+  html+='</select>';
+
+  html+='Date:<input id="date" type="date" value="'+(existing?existing.date:"")+'">';
+
+  html+='Competition:<select id="comp">';
+  for(var c=1;c<competitions.length;c++){
+    html+='<option '+(existing && existing.comp===competitions[c]?'selected':'')+'>'+competitions[c]+'</option>';
+  }
+  html+='</select>';
+
+  html+='Result:<select id="result">';
+  ["W","D","L"].forEach(function(r){
+    html+='<option '+(existing && existing.result===r?'selected':'')+'>'+r+'</option>';
+  });
+  html+='</select>';
+
+  html+='Scoreline:<input id="scoreline" placeholder="2-1" value="'+(existing?existing.scoreline||"":"")+'">';
+
+  html+='<button onclick="matchEntry()">Continue</button>';
+  html+='</div>';
+  html+='<button onclick="view=\'home\';editIndex=null;render()">Back</button>';
+
+  document.getElementById("app").innerHTML=html;
+}
+
+function matchEntry(){
+  var season=document.getElementById("season").value;
+  var opp=document.getElementById("opp").value;
+  var venue=document.getElementById("venue").value;
+  var date=document.getElementById("date").value;
+  var comp=document.getElementById("comp").value;
+  var result=document.getElementById("result").value;
+  var scoreline=document.getElementById("scoreline").value;
+
+  window.pendingMatch={season:season,opp:opp,venue:venue,date:date,comp:comp,result:result,scoreline:scoreline};
+
+  var existing=editIndex!==null ? matches[editIndex] : null;
+
+  var html='<h3>'+season+' | '+date+' vs '+opp+'</h3>';
+  html+='<div class="note">'+venue+' | '+result+' | '+scoreline+' | '+comp+'</div>';
+  html+=playerListHTML();
+
+  html+='<div class="card"><h3>Starting XI</h3><div class="note">Enter player name and goals.</div>';
+  for(var i=1;i<=11;i++){
+    var sp=existing && existing.starting[i-1] ? existing.starting[i-1] : {name:"",goals:0};
+    html+='<div class="row"><b>'+i+'</b><input list="playerNames" id="start_'+i+'" placeholder="Player name" value="'+sp.name+'"><input type="number" id="goal_'+i+'" value="'+(sp.goals||0)+'"></div>';
+  }
+  html+='</div>';
+
+  html+='<div class="card"><h3>Substitutes</h3><div class="note">Enter up to 5 substitutes and goals.</div>';
+  for(var j=1;j<=5;j++){
+    var sub=existing && existing.subs[j-1] ? existing.subs[j-1] : {name:"",goals:0};
+    html+='<div class="row"><b>'+j+'</b><input list="playerNames" id="sub_'+j+'" placeholder="Substitute name" value="'+sub.name+'"><input type="number" id="subgoal_'+j+'" value="'+(sub.goals||0)+'"></div>';
+  }
+  html+='</div>';
+
+  html+='<button onclick="saveMatch()">Save Match</button>';
+  html+='<button onclick="view=\'matches\';editIndex=null;render()">Cancel</button>';
+
+  document.getElementById("app").innerHTML=html;
+}
+
+function saveMatch(){
+  var starting=[];
+  var subs=[];
+
+  for(var i=1;i<=11;i++){
+    var name=document.getElementById("start_"+i).value.trim();
+    var goals=parseInt(document.getElementById("goal_"+i).value)||0;
+    if(name){
+      starting.push({name:name,goals:goals});
+      rememberPlayer(name);
+    }
+  }
+
+  for(var j=1;j<=5;j++){
+    var subName=document.getElementById("sub_"+j).value.trim();
+    var subGoals=parseInt(document.getElementById("subgoal_"+j).value)||0;
+    if(subName){
+      subs.push({name:subName,goals:subGoals});
+      rememberPlayer(subName);
+    }
+  }
+
+  var match={
+    season:window.pendingMatch.season,
+    opp:window.pendingMatch.opp,
+    venue:window.pendingMatch.venue,
+    date:window.pendingMatch.date,
+    comp:window.pendingMatch.comp,
+    result:window.pendingMatch.result,
+    scoreline:window.pendingMatch.scoreline,
+    starting:starting,
+    subs:subs
+  };
+
+  if(editIndex!==null){
+    matches[editIndex]=match;
+    editIndex=null;
+  }else{
+    matches.push(match);
+  }
+
+  saveData();
+  view="home";
+  render();
+}
+
+function editMatch(index){
+  editIndex=index;
+  view="edit";
+  renderMatchDetailsForm(matches[index]);
+}
+
+function deleteMatch(index){
+  if(confirm("Delete this match?")){
+    matches.splice(index,1);
+    saveData();
+    render();
+  }
+}
+
+function exportBackup(){
+  var data={matches:matches,savedPlayers:savedPlayers};
+  var blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  var a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="bournemouth-stats-backup.json";
+  a.click();
+}
+
+document.getElementById("importFile").addEventListener("change",function(event){
+  var file=event.target.files[0];
+  if(!file)return;
+
+  var reader=new FileReader();
+
+  reader.onload=function(e){
+    try{
+      var data=JSON.parse(e.target.result);
+      matches=data.matches||[];
+      savedPlayers=data.savedPlayers||[];
+      saveData();
+      alert("Backup imported successfully");
+      render();
+    }catch(err){
+      alert("Invalid backup file");
+    }
+  };
+
+  reader.readAsText(file);
+});
+
+render();
+</script>
+</body>
+</html>
